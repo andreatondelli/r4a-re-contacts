@@ -25,11 +25,11 @@
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; }
 
   /* ── Layout ── */
-  #app { display: flex; flex-direction: column; height: 100vh; }
+  #app { display: flex; flex-direction: column; height: 100dvh; height: 100vh; }
   header { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; background: var(--surface); }
   .header-left { display: flex; align-items: center; gap: 14px; }
-  .logo { font-family: var(--mono); font-size: 17px; color: var(--accent); letter-spacing: 1px; }
-  .logo span { color: var(--muted); }
+  .logo { font-family: var(--mono); font-size: 17px; color: var(--accent); letter-spacing: 1px; display: flex; flex-direction: column; line-height: 1.3; }
+  .logo span { color: var(--muted); letter-spacing: 0; }
   .live-badge { font-family: var(--mono); font-size: 11px; background: rgba(63,185,80,0.12); color: var(--green); border: 1px solid rgba(63,185,80,0.3); border-radius: 4px; padding: 2px 8px; display: flex; align-items: center; gap: 5px; }
   .live-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
@@ -63,26 +63,34 @@
   .tag-mobile   { background: rgba(210,153,34,0.15); color: var(--orange); border: 1px solid rgba(210,153,34,0.25); }
   .tag-fisso    { background: rgba(88,166,255,0.1);  color: #a5d6ff;       border: 1px solid rgba(88,166,255,0.2); }
 
+  /* ── Legenda ── */
+  .leg-dash { width: 18px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+
   /* ── Layer switcher ── */
   .layer-switcher { display: flex; gap: 4px; }
   .layer-btn { font-family: var(--mono); font-size: 11px; background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
   .layer-btn:hover { border-color: var(--accent); color: var(--text); }
   .layer-btn.active { background: rgba(88,166,255,0.15); border-color: var(--accent); color: var(--accent); }
 
-  /* ── Line tooltip ── */
-  .line-label {
-    background: rgba(13,17,23,0.82);
-    color: #e6edf3;
-    border: 1px solid #30363d;
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px;
-    white-space: nowrap;
-    pointer-events: none;
-    box-shadow: none;
+  /* ── Stats panel mobile ── */
+  #stats-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    z-index: 2000;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    justify-content: space-around;
+    align-items: center;
   }
-  .line-label::before { display: none !important; }
+  #stats-panel.hidden { display: none !important; }
+  #stats-panel .stat-mini { text-align: center; }
+  #stats-btn { display: none; }
+  .stats-close { background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; padding: 2px 8px; line-height: 1; flex-shrink: 0; }
+  .stats-close:hover { color: var(--text); }
 
   /* ── Loading overlay ── */
   #loader { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 9999; transition: opacity 0.4s; }
@@ -97,9 +105,15 @@
   #error-banner { display: none; position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); background: rgba(248,81,73,0.15); border: 1px solid rgba(248,81,73,0.4); color: #f85149; font-family: var(--mono); font-size: 12px; padding: 8px 16px; border-radius: 6px; z-index: 1000; }
 
   @media (max-width: 600px) {
-    .header-right { display: none; }
-    header { padding: 10px 14px; }
-    footer { font-size: 11px; }
+    /* header: 2 righe su mobile */
+    header { padding: 8px 14px; flex-wrap: wrap; gap: 4px; align-items: center; position: relative; }
+    .header-left { flex: 1 1 100%; justify-content: space-between; align-items: center; } /* row 1: logo sinistra, stats+LIVE destra */
+    .layer-switcher { flex: 1 1 100%; justify-content: flex-end; }                         /* row 2: DARK LIGHT SAT a destra */
+    .header-right { display: none; }       /* stats inline nascoste, sostituite dal pannello */
+    #stats-btn { display: flex; }          /* mostra bottone statistiche */
+    #stats-panel { display: flex; }        /* visibile di default su mobile */
+    footer { font-size: 10px; padding: 5px 14px; gap: 5px; }
+    .leg-item { gap: 3px; }
   }
 </style>
 </head>
@@ -116,8 +130,19 @@
 <div id="app">
   <header>
     <div class="header-left">
-      <div class="logo">PONTE VHF <span id="logo-info"></span></div>
-      <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+      <div class="logo" id="logo-main"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="stats-btn" class="layer-btn" title="Statistiche">Stats</button>
+        <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+      </div>
+    </div>
+    <!-- pannello stats mobile (hidden su desktop) -->
+    <div id="stats-panel">
+      <div class="stat-mini"><div class="stat-mini-val" id="h-total-m">—</div><div class="stat-mini-lbl">Contatti</div></div>
+      <div class="stat-mini"><div class="stat-mini-val" id="h-maxdist-m">—</div><div class="stat-mini-lbl">Dist. max</div></div>
+      <div class="stat-mini"><div class="stat-mini-val" id="h-avgdist-m">—</div><div class="stat-mini-lbl">Dist. media</div></div>
+      <div class="stat-mini"><div class="stat-mini-val" id="h-best-m">—</div><div class="stat-mini-lbl">Miglior DX</div></div>
+      <button class="stats-close" id="stats-close" title="Chiudi">✕</button>
     </div>
     <div class="layer-switcher">
       <button class="layer-btn" data-layer="dark">DARK</button>
@@ -128,6 +153,7 @@
       <div class="stat-mini"><div class="stat-mini-val" id="h-total">—</div><div class="stat-mini-lbl">Contatti</div></div>
       <div class="stat-mini"><div class="stat-mini-val" id="h-maxdist">—</div><div class="stat-mini-lbl">Dist. max</div></div>
       <div class="stat-mini"><div class="stat-mini-val" id="h-avgdist">—</div><div class="stat-mini-lbl">Dist. media</div></div>
+      <div class="stat-mini"><div class="stat-mini-val" id="h-best">—</div><div class="stat-mini-lbl">Miglior DX</div></div>
     </div>
   </header>
 
@@ -135,13 +161,18 @@
 
   <footer>
     <div class="legend">
-      <span style="color:var(--muted);font-size:11px">RST:</span>
-      <div class="leg-item"><div class="leg-dot" style="background:#3fb950"></div>59</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#58a6ff"></div>57–58</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#d29922"></div>55–56</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#f85149"></div>≤54</div>
+      <span style="color:var(--muted);font-size:11px">RST (linea):</span>
+      <div class="leg-item"><div class="leg-dash" style="background:#3fb950"></div>59</div>
+      <div class="leg-item"><div class="leg-dash" style="background:#58a6ff"></div>57–58</div>
+      <div class="leg-item"><div class="leg-dash" style="background:#d29922"></div>55–56</div>
+      <div class="leg-item"><div class="leg-dash" style="background:#f85149"></div>≤54</div>
       <span style="color:var(--border)">|</span>
-      <div class="leg-item"><div class="leg-dot" style="background:#7d8590;outline:2px solid #58a6ff;outline-offset:1px"></div>Ponte</div>
+      <span style="color:var(--muted);font-size:11px">Modalità (pallino):</span>
+      <div class="leg-item"><div class="leg-dot" style="background:#3fb950"></div>Portatile</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#d29922"></div>Mobile</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#a5d6ff"></div>Fisso</div>
+      <span style="color:var(--border)">|</span>
+      <div class="leg-item"><span style="font-size:13px;line-height:1">📡</span>Ponte</div>
     </div>
     <div id="last-update">aggiornato: —</div>
   </footer>
@@ -154,6 +185,7 @@
 // ══════════════════════════════════════════════
 const CONFIG = {
   repeater: {
+    name:       "R4A",
     callsign:   "IQ4RE",
     locator:    "JN54fm",
     freq:       "145.7125 MHz",
@@ -168,14 +200,14 @@ const CONFIG = {
   refreshMinutes: 5  // ricarica dati ogni N minuti
 };
 
-// Dati di esempio (usati se sheetCSV è null)
+// Dati di esempio — visibili SOLO in locale (localhost / file://)
 const SAMPLE_DATA = [
-  { callsign:"IK2ABC",  lat:45.464, lon:9.190,  rst_rx:"59", rst_tx:"59", power:5,  mode:"FM", modalita:"portatile", note:"Cima Monte Barro",  data:"2025-04-01 14:32" },
-  { callsign:"IZ1DEF",  lat:44.407, lon:8.934,  rst_rx:"57", rst_tx:"57", power:25, mode:"FM", modalita:"fisso",     note:"Antenna yagi 9el",  data:"2025-04-02 10:15" },
-  { callsign:"HB9GHI",  lat:46.948, lon:7.447,  rst_rx:"55", rst_tx:"55", power:10, mode:"FM", modalita:"mobile",    note:"Da Berna!",          data:"2025-04-03 18:44" },
-  { callsign:"IW4JKL",  lat:44.498, lon:11.354, rst_rx:"58", rst_tx:"58", power:5,  mode:"FM", modalita:"portatile", note:"Monte Cimone",       data:"2025-04-04 09:00" },
-  { callsign:"I2MNO",   lat:45.070, lon:7.687,  rst_rx:"54", rst_tx:"55", power:50, mode:"FM", modalita:"fisso",     note:"",                   data:"2025-04-05 16:20" },
-  { callsign:"IU3PQR",  lat:45.840, lon:11.050, rst_rx:"56", rst_tx:"56", power:5,  mode:"FM", modalita:"portatile", note:"Monte Grappa",       data:"2025-04-06 11:10" },
+  { callsign:"IK2ABC",  lat:45.464, lon:9.190,  rst_rx:"59", power:5,  modalita:"portatile", operatore:"IQ4RE",  note:"Cima Monte Barro", data:"2025-04-01 14:32" },
+  { callsign:"IZ1DEF",  lat:44.407, lon:8.934,  rst_rx:"57", power:25, modalita:"fisso",     operatore:"",       note:"Antenna yagi 9el", data:"2025-04-02 10:15" },
+  { callsign:"HB9GHI",  lat:46.948, lon:7.447,  rst_rx:"55", power:10, modalita:"mobile",    operatore:"IW4TND", note:"Da Berna!",         data:"2025-04-03 18:44" },
+  { callsign:"IW4JKL",  lat:44.498, lon:11.354, rst_rx:"58", power:5,  modalita:"portatile", operatore:"",       note:"Monte Cimone",      data:"2025-04-04 09:00" },
+  { callsign:"I2MNO",   lat:45.070, lon:7.687,  rst_rx:"54", power:50, modalita:"fisso",     operatore:"IQ4RE",  note:"",                  data:"2025-04-05 16:20" },
+  { callsign:"IU3PQR",  lat:45.840, lon:11.050, rst_rx:"56", power:5,  modalita:"portatile", operatore:"",       note:"Monte Grappa",      data:"2025-04-06 11:10" },
 ];
 
 // ══════════════════════════════════════════════
@@ -231,6 +263,15 @@ function maidenheadToLatLon(loc) {
   return { lat, lon };
 }
 
+function modalitaColor(m) {
+  switch ((m || '').toLowerCase()) {
+    case 'portatile': return '#3fb950';
+    case 'mobile':    return '#d29922';
+    case 'fisso':     return '#a5d6ff';
+    default:          return '#8b949e';
+  }
+}
+
 function rstColor(rst) {
   const r = parseInt(rst);
   if (r >= 59) return "#3fb950";
@@ -241,7 +282,7 @@ function rstColor(rst) {
 
 // ══════════════════════════════════════════════
 //  CSV PARSER
-//  atteso: data_ora,callsign,locator,lat,lon,rst_rx,potenza_w,operatore,note
+//  atteso: data_ora,callsign,locator,rst_rx,potenza_w,modalità,operatore,note
 // ══════════════════════════════════════════════
 function splitCSVLine(line) {
   const result = [];
@@ -259,7 +300,10 @@ function splitCSVLine(line) {
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return [];
-  const headers = splitCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/"/g,''));
+  // normalize handles accented headers: «modalità» → «modalita»
+  const headers = splitCSVLine(lines[0]).map(h =>
+    h.trim().toLowerCase().replace(/"/g,'').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  );
   return lines.slice(1).map(line => {
     const vals = splitCSVLine(line);
     const obj = {};
@@ -276,6 +320,7 @@ function parseCSV(text) {
       lon,
       rst_rx:    obj.rst_rx    || '55',
       power:     parseFloat(obj.potenza_w) || 0,
+      modalita:  obj.modalita  || '',
       operatore: obj.operatore || '',
       note:      obj.note      || '',
       data:      obj.data_ora  || ''
@@ -296,10 +341,10 @@ const TILE_LAYERS = {
 let activeLayer = 'light';
 TILE_LAYERS.light.addTo(map);
 
-// Marker ponte
+// Marker ponte — emoji 📡
 const repIcon = L.divIcon({
-  html: `<div style="width:14px;height:14px;background:#58a6ff;border:2px solid #0d1117;border-radius:50%;box-shadow:0 0 8px #58a6ff88"></div>`,
-  className: '', iconAnchor: [7,7]
+  html: `<span style="font-size:22px;line-height:1;display:block;filter:drop-shadow(0 0 4px rgba(88,166,255,0.6))">📡</span>`,
+  className: '', iconAnchor: [11, 11]
 });
 const rep = CONFIG.repeater;
 if (rep.lat == null || rep.lon == null) {
@@ -329,39 +374,37 @@ function renderContacts(contacts) {
   contactLayer.clearLayers();
   if (!contacts.length) return;
 
-  let maxDist = 0, totalDist = 0;
+  let maxDist = 0, totalDist = 0, bestScore = 0;
 
   contacts.forEach(c => {
-    const dist = haversine(rep.lat, rep.lon, c.lat, c.lon);
-    const az   = azimuth(rep.lat, rep.lon, c.lat, c.lon);
+    const dist  = haversine(rep.lat, rep.lon, c.lat, c.lon);
+    const az    = azimuth(rep.lat, rep.lon, c.lat, c.lon);
+    // Indice DX = km/W (dist lineare con potenza: 100km/10W = 10 km/W = 10km/1W)
+    const score = c.power > 0 ? dist / c.power : 0;
     if (dist > maxDist) maxDist = dist;
+    if (score > bestScore) bestScore = score;
     totalDist += dist;
 
     const color = rstColor(c.rst_rx);
     const pts   = greatCirclePoints(rep.lat, rep.lon, c.lat, c.lon);
-    const mid   = pts[Math.floor(pts.length / 2)];
 
     // Linea geodetica
     const line = L.polyline(pts, { color, weight: 2, opacity: 0.75 });
     contactLayer.addLayer(line);
 
-    // Etichetta sulla linea
-    const tooltip = L.tooltip({
-      permanent: true, direction: 'center',
-      className: 'line-label', interactive: false
-    })
-    .setContent(`${Math.round(dist)} km · ${c.power}W`)
-    .setLatLng(mid);
-    contactLayer.addLayer(tooltip);
-
-    // Popup su linea
+    // Popup
+    const modTag = c.modalita
+      ? `<span class="tag tag-${c.modalita.toLowerCase()}">${c.modalita}</span>`
+      : '';
     const popHtml = `
       <div class="popup-call">${c.callsign}</div>
+      ${modTag ? `<div style="margin-bottom:8px">${modTag}</div>` : ''}
       <table class="popup-table">
         <tr><td>Distanza</td><td>${Math.round(dist)} km</td></tr>
         <tr><td>Azimuth</td><td>${Math.round(az)}°</td></tr>
         <tr><td>RST</td><td>${c.rst_rx}</td></tr>
         <tr><td>Potenza Tx</td><td>${c.power} W</td></tr>
+        ${score > 0 ? `<tr><td>Indice DX</td><td>${Math.round(score)} km/W</td></tr>` : ''}
         ${c.operatore ? `<tr><td>Operatore</td><td>${c.operatore}</td></tr>` : ''}
         ${c.note ? `<tr><td>Note</td><td>${c.note}</td></tr>` : ''}
         ${c.data ? `<tr><td>Data/ora</td><td>${c.data}</td></tr>` : ''}
@@ -369,21 +412,43 @@ function renderContacts(contacts) {
     `;
     line.bindPopup(popHtml);
 
-    // Marker stazione
+    // Marker stazione — colore per modalità
+    const dotColor = modalitaColor(c.modalita);
     const stIcon = L.divIcon({
-      html: `<div style="width:9px;height:9px;background:${color};border:1.5px solid #0d1117;border-radius:50%"></div>`,
+      html: `<div style="width:9px;height:9px;background:${dotColor};border:1.5px solid #0d1117;border-radius:50%"></div>`,
       className: '', iconAnchor: [4,4]
     });
     const marker = L.marker([c.lat, c.lon], { icon: stIcon });
     marker.bindPopup(popHtml);
     contactLayer.addLayer(marker);
+
+    // Etichetta a fianco del pallino, cliccabile
+    const lblIcon = L.divIcon({
+      className:  '',
+      iconSize:   [1, 1],
+      iconAnchor: [-10, 8],
+      html: `<span style="display:inline-block;white-space:nowrap;font-family:'Share Tech Mono',monospace;font-size:11px;background:rgba(13,17,23,0.82);border:1px solid #30363d;border-radius:4px;padding:1px 6px;color:#e6edf3;cursor:pointer;">${Math.round(dist)} km — ${c.power > 0 ? c.power + ' W' : '—'}</span>`
+    });
+    const lblMarker = L.marker([c.lat, c.lon], { icon: lblIcon });
+    lblMarker.bindPopup(popHtml);
+    contactLayer.addLayer(lblMarker);
   });
 
   // Aggiorna header stats
   document.getElementById('h-total').textContent   = contacts.length;
   document.getElementById('h-maxdist').textContent = Math.round(maxDist) + ' km';
   document.getElementById('h-avgdist').textContent = Math.round(totalDist / contacts.length) + ' km';
+  document.getElementById('h-best').textContent    = bestScore > 0 ? Math.round(bestScore) + ' km/W' : '—';
+  // Aggiorna anche il pannello mobile
+  document.getElementById('h-total-m').textContent   = contacts.length;
+  document.getElementById('h-maxdist-m').textContent = Math.round(maxDist) + ' km';
+  document.getElementById('h-avgdist-m').textContent = Math.round(totalDist / contacts.length) + ' km';
+  document.getElementById('h-best-m').textContent    = bestScore > 0 ? Math.round(bestScore) + ' km/W' : '—';
   document.getElementById('last-update').textContent = 'aggiornato: ' + new Date().toLocaleTimeString('it-IT');
+
+  // Centra la mappa per contenere ripetitore + tutti i contatti
+  const allPoints = [[rep.lat, rep.lon], ...contacts.map(c => [c.lat, c.lon])];
+  map.fitBounds(L.latLngBounds(allPoints), { padding: [40, 40] });
 }
 
 // ══════════════════════════════════════════════
@@ -427,7 +492,14 @@ async function loadData() {
 //  BOOT
 // ══════════════════════════════════════════════
 window.addEventListener('load', async () => {
-  document.getElementById('logo-info').textContent = `${rep.freq} — ${rep.locator.toUpperCase()}`;
+  document.getElementById('logo-main').innerHTML = `${rep.name} by ${rep.callsign}<br><span>${rep.freq}</span>`;
+
+  // Stats panel toggle (mobile)
+  const statsBtn   = document.getElementById('stats-btn');
+  const statsPanel = document.getElementById('stats-panel');
+  const statsClose = document.getElementById('stats-close');
+  statsBtn.addEventListener('click', () => statsPanel.classList.toggle('hidden'));
+  statsClose.addEventListener('click', () => statsPanel.classList.add('hidden'));
 
   // Layer switcher
   document.querySelectorAll('.layer-btn').forEach(btn => {
