@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ponte VHF — Mappa Collegamenti</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --accent:   #58a6ff;
+    --green:    #3fb950;
+    --orange:   #d29922;
+    --red:      #f85149;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --mono:     'Share Tech Mono', monospace;
+    --sans:     'Barlow', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; }
+
+  /* ── Layout ── */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+  header { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; background: var(--surface); }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo { font-family: var(--mono); font-size: 17px; color: var(--accent); letter-spacing: 1px; }
+  .logo span { color: var(--muted); }
+  .live-badge { font-family: var(--mono); font-size: 11px; background: rgba(63,185,80,0.12); color: var(--green); border: 1px solid rgba(63,185,80,0.3); border-radius: 4px; padding: 2px 8px; display: flex; align-items: center; gap: 5px; }
+  .live-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .header-right { display: flex; gap: 20px; }
+  .stat-mini { text-align: right; }
+  .stat-mini-val { font-family: var(--mono); font-size: 18px; color: var(--text); }
+  .stat-mini-lbl { font-size: 11px; color: var(--muted); }
+
+  /* ── Map ── */
+  #map { flex: 1; width: 100%; min-height: 0; }
+
+  /* ── Footer / legend ── */
+  footer { padding: 7px 20px; border-top: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+  .legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  #last-update { font-family: var(--mono); font-size: 11px; }
+
+  /* ── Popup ── */
+  .leaflet-popup-content-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+  .leaflet-popup-tip { background: var(--surface); }
+  .leaflet-popup-content { margin: 14px 16px; color: var(--text); }
+  .popup-call { font-family: var(--mono); font-size: 16px; color: var(--accent); margin-bottom: 6px; }
+  .popup-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .popup-table td { padding: 3px 0; }
+  .popup-table td:first-child { color: var(--muted); padding-right: 16px; }
+  .popup-table td:last-child { font-weight: 500; text-align: right; }
+  .tag { display: inline-block; font-size: 10px; font-family: var(--mono); padding: 1px 6px; border-radius: 3px; margin-right: 3px; }
+  .tag-fm       { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.25); }
+  .tag-portatile{ background: rgba(63,185,80,0.15);  color: var(--green);  border: 1px solid rgba(63,185,80,0.25); }
+  .tag-mobile   { background: rgba(210,153,34,0.15); color: var(--orange); border: 1px solid rgba(210,153,34,0.25); }
+  .tag-fisso    { background: rgba(88,166,255,0.1);  color: #a5d6ff;       border: 1px solid rgba(88,166,255,0.2); }
+
+  /* ── Layer switcher ── */
+  .layer-switcher { display: flex; gap: 4px; }
+  .layer-btn { font-family: var(--mono); font-size: 11px; background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+  .layer-btn:hover { border-color: var(--accent); color: var(--text); }
+  .layer-btn.active { background: rgba(88,166,255,0.15); border-color: var(--accent); color: var(--accent); }
+
+  /* ── Line tooltip ── */
+  .line-label {
+    background: rgba(13,17,23,0.82);
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: none;
+  }
+  .line-label::before { display: none !important; }
+
+  /* ── Loading overlay ── */
+  #loader { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 9999; transition: opacity 0.4s; }
+  #loader.hidden { opacity: 0; pointer-events: none; }
+  .loader-call { font-family: var(--mono); font-size: 22px; color: var(--accent); letter-spacing: 2px; }
+  .loader-sub  { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .loader-bar  { width: 200px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .loader-fill { height: 100%; width: 0%; background: var(--accent); animation: load 1.2s ease forwards; border-radius: 2px; }
+  @keyframes load { to { width: 100%; } }
+
+  /* ── Error banner ── */
+  #error-banner { display: none; position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); background: rgba(248,81,73,0.15); border: 1px solid rgba(248,81,73,0.4); color: #f85149; font-family: var(--mono); font-size: 12px; padding: 8px 16px; border-radius: 6px; z-index: 1000; }
+
+  @media (max-width: 600px) {
+    .header-right { display: none; }
+    header { padding: 10px 14px; }
+    footer { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="loader-call">IQ4RE</div>
+  <div class="loader-sub">Caricamento collegamenti in corso...</div>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+</div>
+
+<div id="error-banner"></div>
+
+<div id="app">
+  <header>
+    <div class="header-left">
+      <div class="logo">PONTE VHF <span id="logo-info"></span></div>
+      <div class="live-badge"><div class="live-dot"></div> LIVE</div>
+    </div>
+    <div class="layer-switcher">
+      <button class="layer-btn" data-layer="dark">DARK</button>
+      <button class="layer-btn active" data-layer="light">LIGHT</button>
+      <button class="layer-btn" data-layer="satellite">SAT</button>
+    </div>
+    <div class="header-right">
+      <div class="stat-mini"><div class="stat-mini-val" id="h-total">—</div><div class="stat-mini-lbl">Contatti</div></div>
+      <div class="stat-mini"><div class="stat-mini-val" id="h-maxdist">—</div><div class="stat-mini-lbl">Dist. max</div></div>
+      <div class="stat-mini"><div class="stat-mini-val" id="h-avgdist">—</div><div class="stat-mini-lbl">Dist. media</div></div>
+    </div>
+  </header>
+
+  <div id="map"></div>
+
+  <footer>
+    <div class="legend">
+      <span style="color:var(--muted);font-size:11px">RST:</span>
+      <div class="leg-item"><div class="leg-dot" style="background:#3fb950"></div>59</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#58a6ff"></div>57–58</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#d29922"></div>55–56</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#f85149"></div>≤54</div>
+      <span style="color:var(--border)">|</span>
+      <div class="leg-item"><div class="leg-dot" style="background:#7d8590;outline:2px solid #58a6ff;outline-offset:1px"></div>Ponte</div>
+    </div>
+    <div id="last-update">aggiornato: —</div>
+  </footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ══════════════════════════════════════════════
+//  CONFIGURAZIONE — modifica qui
+// ══════════════════════════════════════════════
+const CONFIG = {
+  repeater: {
+    callsign:   "IQ4RE",
+    locator:    "JN54fm",
+    freq:       "145.7125 MHz",
+    subtone:    "88.5 Hz",
+    modo:       "FM",
+    localita:   "Casina (RE)",
+    altitudine: "600 m"
+  },
+  // Sostituisci con l'URL CSV del tuo Google Sheet pubblicato
+  // Es: "https://docs.google.com/spreadsheets/d/SHEET_ID/export?format=csv&gid=0"
+  sheetCSV: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQW2sgttYh4W0Uis7n637u4VMtM-Uzay0PIF4wdokJRWn892eUxL4b_l0nsShz4YZSzH7SNMJeAFt3f/pub?gid=0&single=true&output=csv",
+  refreshMinutes: 5  // ricarica dati ogni N minuti
+};
+
+// Dati di esempio (usati se sheetCSV è null)
+const SAMPLE_DATA = [
+  { callsign:"IK2ABC",  lat:45.464, lon:9.190,  rst_rx:"59", rst_tx:"59", power:5,  mode:"FM", modalita:"portatile", note:"Cima Monte Barro",  data:"2025-04-01 14:32" },
+  { callsign:"IZ1DEF",  lat:44.407, lon:8.934,  rst_rx:"57", rst_tx:"57", power:25, mode:"FM", modalita:"fisso",     note:"Antenna yagi 9el",  data:"2025-04-02 10:15" },
+  { callsign:"HB9GHI",  lat:46.948, lon:7.447,  rst_rx:"55", rst_tx:"55", power:10, mode:"FM", modalita:"mobile",    note:"Da Berna!",          data:"2025-04-03 18:44" },
+  { callsign:"IW4JKL",  lat:44.498, lon:11.354, rst_rx:"58", rst_tx:"58", power:5,  mode:"FM", modalita:"portatile", note:"Monte Cimone",       data:"2025-04-04 09:00" },
+  { callsign:"I2MNO",   lat:45.070, lon:7.687,  rst_rx:"54", rst_tx:"55", power:50, mode:"FM", modalita:"fisso",     note:"",                   data:"2025-04-05 16:20" },
+  { callsign:"IU3PQR",  lat:45.840, lon:11.050, rst_rx:"56", rst_tx:"56", power:5,  mode:"FM", modalita:"portatile", note:"Monte Grappa",       data:"2025-04-06 11:10" },
+];
+
+// ══════════════════════════════════════════════
+//  MATH UTILS
+// ══════════════════════════════════════════════
+const toRad = d => d * Math.PI / 180;
+const toDeg = r => r * 180 / Math.PI;
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function azimuth(lat1, lon1, lat2, lon2) {
+  const dLon = toRad(lon2-lon1);
+  const y = Math.sin(dLon)*Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+// Great-circle interpolation
+function greatCirclePoints(lat1, lon1, lat2, lon2, n=80) {
+  const φ1=toRad(lat1), λ1=toRad(lon1), φ2=toRad(lat2), λ2=toRad(lon2);
+  const d = 2*Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2));
+  const pts = [];
+  for (let i=0; i<=n; i++) {
+    const f = i/n;
+    if (d < 0.0001) { pts.push([lat1,lon1]); continue; }
+    const A=Math.sin((1-f)*d)/Math.sin(d), B=Math.sin(f*d)/Math.sin(d);
+    const x=A*Math.cos(φ1)*Math.cos(λ1)+B*Math.cos(φ2)*Math.cos(λ2);
+    const y=A*Math.cos(φ1)*Math.sin(λ1)+B*Math.cos(φ2)*Math.sin(λ2);
+    const z=A*Math.sin(φ1)+B*Math.sin(φ2);
+    pts.push([toDeg(Math.atan2(z,Math.sqrt(x*x+y*y))), toDeg(Math.atan2(y,x))]);
+  }
+  return pts;
+}
+
+function maidenheadToLatLon(loc) {
+  loc = (loc || '').trim().toUpperCase();
+  if (loc.length < 4) return null;
+  let lon = (loc.charCodeAt(0) - 65) * 20 - 180;
+  let lat = (loc.charCodeAt(1) - 65) * 10 - 90;
+  lon += parseInt(loc[2]) * 2;
+  lat += parseInt(loc[3]);
+  if (loc.length >= 6) {
+    lon += (loc.charCodeAt(4) - 65) * (2/24) + 1/24;
+    lat += (loc.charCodeAt(5) - 65) * (1/24) + 1/48;
+  } else {
+    lon += 1;
+    lat += 0.5;
+  }
+  return { lat, lon };
+}
+
+function rstColor(rst) {
+  const r = parseInt(rst);
+  if (r >= 59) return "#3fb950";
+  if (r >= 57) return "#58a6ff";
+  if (r >= 55) return "#d29922";
+  return "#f85149";
+}
+
+// ══════════════════════════════════════════════
+//  CSV PARSER
+//  atteso: data_ora,callsign,locator,lat,lon,rst_rx,potenza_w,operatore,note
+// ══════════════════════════════════════════════
+function splitCSVLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur);
+  return result;
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = splitCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/"/g,''));
+  return lines.slice(1).map(line => {
+    const vals = splitCSVLine(line);
+    const obj = {};
+    headers.forEach((h,i) => { obj[h] = (vals[i]||'').replace(/^"|"$/g,'').trim(); });
+    let lat = parseFloat(obj.lat);
+    let lon = parseFloat(obj.lon);
+    if ((isNaN(lat) || isNaN(lon)) && obj.locator) {
+      const ll = maidenheadToLatLon(obj.locator);
+      if (ll) { lat = ll.lat; lon = ll.lon; }
+    }
+    return {
+      callsign:  obj.callsign  || '',
+      lat,
+      lon,
+      rst_rx:    obj.rst_rx    || '55',
+      power:     parseFloat(obj.potenza_w) || 0,
+      operatore: obj.operatore || '',
+      note:      obj.note      || '',
+      data:      obj.data_ora  || ''
+    };
+  }).filter(c => !isNaN(c.lat) && !isNaN(c.lon) && c.callsign);
+}
+
+// ══════════════════════════════════════════════
+//  MAP INIT
+// ══════════════════════════════════════════════
+const map = L.map('map', { zoomControl: true }).setView([45.2, 9.0], 7);
+
+const TILE_LAYERS = {
+  dark:      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',    { attribution: '© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19 }),
+  light:     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',   { attribution: '© OpenStreetMap © CARTO', subdomains:'abcd', maxZoom:19 }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri World Imagery', maxZoom:19 }),
+};
+let activeLayer = 'light';
+TILE_LAYERS.light.addTo(map);
+
+// Marker ponte
+const repIcon = L.divIcon({
+  html: `<div style="width:14px;height:14px;background:#58a6ff;border:2px solid #0d1117;border-radius:50%;box-shadow:0 0 8px #58a6ff88"></div>`,
+  className: '', iconAnchor: [7,7]
+});
+const rep = CONFIG.repeater;
+if (rep.lat == null || rep.lon == null) {
+  const ll = maidenheadToLatLon(rep.locator);
+  if (ll) { rep.lat = ll.lat; rep.lon = ll.lon; }
+}
+L.marker([rep.lat, rep.lon], { icon: repIcon, zIndexOffset: 1000 })
+  .addTo(map)
+  .bindPopup(`
+    <div class="popup-call">${rep.callsign}</div>
+    <table class="popup-table">
+      <tr><td>Locator</td><td>${rep.locator.toUpperCase()}</td></tr>
+      <tr><td>Frequenza</td><td>${rep.freq}</td></tr>
+      <tr><td>Subtono</td><td>${rep.subtone}</td></tr>
+      <tr><td>Modo</td><td>${rep.modo}</td></tr>
+      ${rep.localita   ? `<tr><td>Località</td><td>${rep.localita}</td></tr>`     : ''}
+      ${rep.altitudine ? `<tr><td>Altitudine</td><td>${rep.altitudine}</td></tr>` : ''}
+    </table>
+  `);
+
+let contactLayer = L.layerGroup().addTo(map);
+
+// ══════════════════════════════════════════════
+//  RENDER CONTACTS
+// ══════════════════════════════════════════════
+function renderContacts(contacts) {
+  contactLayer.clearLayers();
+  if (!contacts.length) return;
+
+  let maxDist = 0, totalDist = 0;
+
+  contacts.forEach(c => {
+    const dist = haversine(rep.lat, rep.lon, c.lat, c.lon);
+    const az   = azimuth(rep.lat, rep.lon, c.lat, c.lon);
+    if (dist > maxDist) maxDist = dist;
+    totalDist += dist;
+
+    const color = rstColor(c.rst_rx);
+    const pts   = greatCirclePoints(rep.lat, rep.lon, c.lat, c.lon);
+    const mid   = pts[Math.floor(pts.length / 2)];
+
+    // Linea geodetica
+    const line = L.polyline(pts, { color, weight: 2, opacity: 0.75 });
+    contactLayer.addLayer(line);
+
+    // Etichetta sulla linea
+    const tooltip = L.tooltip({
+      permanent: true, direction: 'center',
+      className: 'line-label', interactive: false
+    })
+    .setContent(`${Math.round(dist)} km · ${c.power}W`)
+    .setLatLng(mid);
+    contactLayer.addLayer(tooltip);
+
+    // Popup su linea
+    const popHtml = `
+      <div class="popup-call">${c.callsign}</div>
+      <table class="popup-table">
+        <tr><td>Distanza</td><td>${Math.round(dist)} km</td></tr>
+        <tr><td>Azimuth</td><td>${Math.round(az)}°</td></tr>
+        <tr><td>RST</td><td>${c.rst_rx}</td></tr>
+        <tr><td>Potenza Tx</td><td>${c.power} W</td></tr>
+        ${c.operatore ? `<tr><td>Operatore</td><td>${c.operatore}</td></tr>` : ''}
+        ${c.note ? `<tr><td>Note</td><td>${c.note}</td></tr>` : ''}
+        ${c.data ? `<tr><td>Data/ora</td><td>${c.data}</td></tr>` : ''}
+      </table>
+    `;
+    line.bindPopup(popHtml);
+
+    // Marker stazione
+    const stIcon = L.divIcon({
+      html: `<div style="width:9px;height:9px;background:${color};border:1.5px solid #0d1117;border-radius:50%"></div>`,
+      className: '', iconAnchor: [4,4]
+    });
+    const marker = L.marker([c.lat, c.lon], { icon: stIcon });
+    marker.bindPopup(popHtml);
+    contactLayer.addLayer(marker);
+  });
+
+  // Aggiorna header stats
+  document.getElementById('h-total').textContent   = contacts.length;
+  document.getElementById('h-maxdist').textContent = Math.round(maxDist) + ' km';
+  document.getElementById('h-avgdist').textContent = Math.round(totalDist / contacts.length) + ' km';
+  document.getElementById('last-update').textContent = 'aggiornato: ' + new Date().toLocaleTimeString('it-IT');
+}
+
+// ══════════════════════════════════════════════
+//  DATA LOADING
+// ══════════════════════════════════════════════
+function showError(msg) {
+  const el = document.getElementById('error-banner');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+function isLocalDev() {
+  const h = location.hostname;
+  return location.protocol === 'file:' || h === 'localhost' || h === '127.0.0.1' || h === '';
+}
+
+async function loadData() {
+  if (!CONFIG.sheetCSV) {
+    if (isLocalDev()) renderContacts(SAMPLE_DATA);
+    return;
+  }
+  try {
+    const res = await fetch(CONFIG.sheetCSV);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const data = parseCSV(text);
+    if (!data.length) throw new Error('Nessun dato valido nel foglio');
+    renderContacts(data);
+  } catch(e) {
+    if (isLocalDev()) {
+      showError('Errore Sheet: ' + e.message + ' — dati mock (solo in locale)');
+      renderContacts(SAMPLE_DATA);
+    } else {
+      showError('Errore caricamento dati: ' + e.message);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════
+window.addEventListener('load', async () => {
+  document.getElementById('logo-info').textContent = `${rep.freq} — ${rep.locator.toUpperCase()}`;
+
+  // Layer switcher
+  document.querySelectorAll('.layer-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const layer = btn.dataset.layer;
+      if (layer === activeLayer) return;
+      map.removeLayer(TILE_LAYERS[activeLayer]);
+      TILE_LAYERS[layer].addTo(map);
+      activeLayer = layer;
+      document.querySelectorAll('.layer-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.layer === layer)
+      );
+    });
+  });
+
+  await loadData();
+  document.getElementById('loader').classList.add('hidden');
+  if (CONFIG.refreshMinutes > 0) {
+    setInterval(loadData, CONFIG.refreshMinutes * 60 * 1000);
+  }
+});
+</script>
+</body>
+</html>
