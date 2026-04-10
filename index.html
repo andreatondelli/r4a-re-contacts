@@ -38,15 +38,30 @@
   .stat-mini-val { font-family: var(--mono); font-size: 18px; color: var(--text); }
   .stat-mini-lbl { font-size: 11px; color: var(--muted); }
 
-  /* ── Map ── */
-  #map { flex: 1; width: 100%; min-height: 0; }
+  /* ── Map area + Sidebar ── */
+  #map-area { position: relative; flex: 1; min-height: 0; }
+  #map { width: 100%; height: 100%; }
 
-  /* ── Footer / legend ── */
-  footer { padding: 7px 20px; border-top: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
-  .legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-  .leg-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; }
-  .leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  #last-update { font-family: var(--mono); font-size: 11px; }
+  /* ── Sidebar ── */
+  #sidebar {
+    position: absolute; top: 10px; right: 10px; z-index: 1000;
+    width: 215px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; font-size: 12px;
+    overflow-y: auto; max-height: calc(100% - 20px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+  #sidebar-close { display: none; background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; float: right; margin: -4px -4px 4px 0; line-height: 1; }
+  #sidebar-close:hover { color: var(--text); }
+  .sb-title { font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .sb-sublabel { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 7px; margin-bottom: 3px; }
+  .sb-sep { height: 1px; background: var(--border); margin: 10px 0; }
+  .leg-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; margin-bottom: 3px; }
+  .leg-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .leg-dash { width: 20px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+  .filter-item { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; margin-bottom: 4px; cursor: pointer; user-select: none; }
+  .filter-item input[type=checkbox] { accent-color: var(--accent); margin: 0; cursor: pointer; }
+  #last-update { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 8px; }
+  #filter-btn { display: none; }
 
   /* ── Popup ── */
   .leaflet-popup-content-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
@@ -62,9 +77,6 @@
   .tag-portatile{ background: rgba(63,185,80,0.15);  color: var(--green);  border: 1px solid rgba(63,185,80,0.25); }
   .tag-mobile   { background: rgba(210,153,34,0.15); color: var(--orange); border: 1px solid rgba(210,153,34,0.25); }
   .tag-fisso    { background: rgba(88,166,255,0.1);  color: #a5d6ff;       border: 1px solid rgba(88,166,255,0.2); }
-
-  /* ── Legenda ── */
-  .leg-dash { width: 18px; height: 3px; border-radius: 2px; flex-shrink: 0; }
 
   /* ── Layer switcher ── */
   .layer-switcher { display: flex; gap: 4px; }
@@ -112,8 +124,22 @@
     .header-right { display: none; }       /* stats inline nascoste, sostituite dal pannello */
     #stats-btn { display: flex; }          /* mostra bottone statistiche */
     #stats-panel { display: flex; }        /* visibile di default su mobile */
-    footer { font-size: 10px; padding: 5px 14px; gap: 5px; }
-    .leg-item { gap: 3px; }
+    /* Sidebar: drawer da destra su mobile */
+    #sidebar {
+      top: 0; right: 0; bottom: 0; width: 240px;
+      border-radius: 0; border: none;
+      max-height: 100%; transform: translateX(100%); transition: transform 0.25s ease; z-index: 1500;
+    }
+    #sidebar.open { transform: translateX(0); box-shadow: -4px 0 20px rgba(0,0,0,0.5); }
+    #sidebar-close { display: block; }
+    #filter-btn {
+      display: flex; align-items: center; justify-content: center;
+      position: absolute; bottom: 80px; right: 10px; z-index: 1000;
+      width: 38px; height: 38px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 50%; color: var(--muted); font-size: 17px; cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    #filter-btn:hover { color: var(--text); }
   }
 </style>
 </head>
@@ -157,25 +183,11 @@
     </div>
   </header>
 
-  <div id="map"></div>
-
-  <footer>
-    <div class="legend">
-      <span style="color:var(--muted);font-size:11px">RST (linea):</span>
-      <div class="leg-item"><div class="leg-dash" style="background:#3fb950"></div>59</div>
-      <div class="leg-item"><div class="leg-dash" style="background:#58a6ff"></div>57–58</div>
-      <div class="leg-item"><div class="leg-dash" style="background:#d29922"></div>55–56</div>
-      <div class="leg-item"><div class="leg-dash" style="background:#f85149"></div>≤54</div>
-      <span style="color:var(--border)">|</span>
-      <span style="color:var(--muted);font-size:11px">Modalità (pallino):</span>
-      <div class="leg-item"><div class="leg-dot" style="background:#3fb950"></div>Portatile</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#d29922"></div>Mobile</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#a5d6ff"></div>Fisso</div>
-      <span style="color:var(--border)">|</span>
-      <div class="leg-item"><span style="font-size:13px;line-height:1">📡</span>Ponte</div>
-    </div>
-    <div id="last-update">aggiornato: —</div>
-  </footer>
+  <div id="map-area">
+    <div id="map"></div>
+    <div id="sidebar"><!-- generato da JS --></div>
+    <button id="filter-btn" title="Filtri e legenda">☰</button>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -197,7 +209,26 @@ const CONFIG = {
   // Sostituisci con l'URL CSV del tuo Google Sheet pubblicato
   // Es: "https://docs.google.com/spreadsheets/d/SHEET_ID/export?format=csv&gid=0"
   sheetCSV: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQW2sgttYh4W0Uis7n637u4VMtM-Uzay0PIF4wdokJRWn892eUxL4b_l0nsShz4YZSzH7SNMJeAFt3f/pub?gid=0&single=true&output=csv",
-  refreshMinutes: 5  // ricarica dati ogni N minuti
+  refreshMinutes: 5,  // ricarica dati ogni N minuti
+
+  // Fasce di potenza — definisce stile linea (weight, dash) e soglie filtro
+  // ordine: dalla più alta alla più bassa
+  powerBands: [
+    { label: '> 50 W',    minW: 50,           weight: 3,   dash: null  },
+    { label: '10 – 50 W', minW: 10, maxW: 50, weight: 2,   dash: '8,4' },
+    { label: '< 10 W',   maxW: 10,            weight: 1.5, dash: '4,6' },
+  ],
+
+  // Soglie RST — ordine decrescente, la prima che corrisponde vince
+  rstBands: [
+    { min: 59, color: '#3fb950', label: '59'    },
+    { min: 57, color: '#58a6ff', label: '57–58' },
+    { min: 55, color: '#d29922', label: '55–56' },
+    { min: 0,  color: '#f85149', label: '≤54'   },
+  ],
+
+  // Modalità — per filtri e legenda
+  modalita: ['portatile', 'mobile', 'fisso'],
 };
 
 // Dati di esempio — visibili SOLO in locale (localhost / file://)
@@ -274,10 +305,21 @@ function modalitaColor(m) {
 
 function rstColor(rst) {
   const r = parseInt(rst);
-  if (r >= 59) return "#3fb950";
-  if (r >= 57) return "#58a6ff";
-  if (r >= 55) return "#d29922";
-  return "#f85149";
+  for (const b of CONFIG.rstBands) { if (r >= b.min) return b.color; }
+  return CONFIG.rstBands[CONFIG.rstBands.length - 1].color;
+}
+
+function getPowerBandIndex(power) {
+  for (let i = 0; i < CONFIG.powerBands.length; i++) {
+    const b = CONFIG.powerBands[i];
+    if ((b.minW == null || power >= b.minW) && (b.maxW == null || power < b.maxW)) return i;
+  }
+  return CONFIG.powerBands.length - 1;
+}
+
+function powerLineStyle(power) {
+  const b = CONFIG.powerBands[getPowerBandIndex(power)];
+  return { weight: b.weight, dashArray: b.dash };
 }
 
 // ══════════════════════════════════════════════
@@ -370,10 +412,8 @@ let contactLayer = L.layerGroup().addTo(map);
 // ══════════════════════════════════════════════
 //  RENDER CONTACTS
 // ══════════════════════════════════════════════
-function renderContacts(contacts) {
+function renderContacts(contacts, fitView = true) {
   contactLayer.clearLayers();
-  if (!contacts.length) return;
-
   let maxDist = 0, totalDist = 0, bestScore = 0;
 
   contacts.forEach(c => {
@@ -381,15 +421,16 @@ function renderContacts(contacts) {
     const az    = azimuth(rep.lat, rep.lon, c.lat, c.lon);
     // Indice DX = km/W (dist lineare con potenza: 100km/10W = 10 km/W = 10km/1W)
     const score = c.power > 0 ? dist / c.power : 0;
-    if (dist > maxDist) maxDist = dist;
+    if (dist > maxDist)   maxDist   = dist;
     if (score > bestScore) bestScore = score;
     totalDist += dist;
 
     const color = rstColor(c.rst_rx);
+    const { weight, dashArray } = powerLineStyle(c.power);
     const pts   = greatCirclePoints(rep.lat, rep.lon, c.lat, c.lon);
 
     // Linea geodetica
-    const line = L.polyline(pts, { color, weight: 2, opacity: 0.75 });
+    const line = L.polyline(pts, { color, weight, dashArray, opacity: 0.85 });
     contactLayer.addLayer(line);
 
     // Popup
@@ -435,20 +476,23 @@ function renderContacts(contacts) {
   });
 
   // Aggiorna header stats
-  document.getElementById('h-total').textContent   = contacts.length;
-  document.getElementById('h-maxdist').textContent = Math.round(maxDist) + ' km';
-  document.getElementById('h-avgdist').textContent = Math.round(totalDist / contacts.length) + ' km';
+  const n = contacts.length;
+  document.getElementById('h-total').textContent   = n;
+  document.getElementById('h-maxdist').textContent = n ? Math.round(maxDist) + ' km' : '—';
+  document.getElementById('h-avgdist').textContent = n ? Math.round(totalDist / n) + ' km'  : '—';
   document.getElementById('h-best').textContent    = bestScore > 0 ? Math.round(bestScore) + ' km/W' : '—';
   // Aggiorna anche il pannello mobile
-  document.getElementById('h-total-m').textContent   = contacts.length;
-  document.getElementById('h-maxdist-m').textContent = Math.round(maxDist) + ' km';
-  document.getElementById('h-avgdist-m').textContent = Math.round(totalDist / contacts.length) + ' km';
+  document.getElementById('h-total-m').textContent   = n;
+  document.getElementById('h-maxdist-m').textContent = n ? Math.round(maxDist) + ' km' : '—';
+  document.getElementById('h-avgdist-m').textContent = n ? Math.round(totalDist / n) + ' km'  : '—';
   document.getElementById('h-best-m').textContent    = bestScore > 0 ? Math.round(bestScore) + ' km/W' : '—';
-  document.getElementById('last-update').textContent = 'aggiornato: ' + new Date().toLocaleTimeString('it-IT');
+  const lu = document.getElementById('last-update');
+  if (lu) lu.textContent = 'aggiornato: ' + new Date().toLocaleTimeString('it-IT');
 
-  // Centra la mappa per contenere ripetitore + tutti i contatti
-  const allPoints = [[rep.lat, rep.lon], ...contacts.map(c => [c.lat, c.lon])];
-  map.fitBounds(L.latLngBounds(allPoints), { padding: [40, 40] });
+  if (fitView && n) {
+    const allPoints = [[rep.lat, rep.lon], ...contacts.map(c => [c.lat, c.lon])];
+    map.fitBounds(L.latLngBounds(allPoints), { padding: [40, 40] });
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -466,9 +510,24 @@ function isLocalDev() {
   return location.protocol === 'file:' || h === 'localhost' || h === '127.0.0.1' || h === '';
 }
 
+let allContacts = [];
+let filterPower    = null;
+let filterModalita = null;
+
+function applyFilters(fitView = false) {
+  const knownMods = CONFIG.modalita.map(m => m.toLowerCase());
+  const filtered = allContacts.filter(c => {
+    if (filterPower !== null && !filterPower.has(getPowerBandIndex(c.power))) return false;
+    const mod = (c.modalita || '').toLowerCase();
+    if (filterModalita !== null && knownMods.includes(mod) && !filterModalita.has(mod)) return false;
+    return true;
+  });
+  renderContacts(filtered, fitView);
+}
+
 async function loadData() {
   if (!CONFIG.sheetCSV) {
-    if (isLocalDev()) renderContacts(SAMPLE_DATA);
+    if (isLocalDev()) { allContacts = SAMPLE_DATA; applyFilters(true); }
     return;
   }
   try {
@@ -477,11 +536,13 @@ async function loadData() {
     const text = await res.text();
     const data = parseCSV(text);
     if (!data.length) throw new Error('Nessun dato valido nel foglio');
-    renderContacts(data);
+    allContacts = data;
+    applyFilters(true);
   } catch(e) {
     if (isLocalDev()) {
       showError('Errore Sheet: ' + e.message + ' — dati mock (solo in locale)');
-      renderContacts(SAMPLE_DATA);
+      allContacts = SAMPLE_DATA;
+      applyFilters(true);
     } else {
       showError('Errore caricamento dati: ' + e.message);
     }
@@ -501,15 +562,86 @@ window.addEventListener('load', async () => {
   statsBtn.addEventListener('click', () => statsPanel.classList.toggle('hidden'));
   statsClose.addEventListener('click', () => statsPanel.classList.add('hidden'));
 
+  // Init stato filtri — tutto attivo
+  filterPower    = new Set(CONFIG.powerBands.map((_, i) => i));
+  filterModalita = new Set(CONFIG.modalita.map(m => m.toLowerCase()));
+
+  // ─ Genera sidebar (legenda + filtri) da CONFIG ─
+  const sidebar   = document.getElementById('sidebar');
+  const filterBtn = document.getElementById('filter-btn');
+
+  const rstLeg = CONFIG.rstBands.map(b =>
+    `<div class="leg-item"><div class="leg-dash" style="background:${b.color}"></div>${b.label}</div>`
+  ).join('');
+
+  const powerLeg = CONFIG.powerBands.map(b => {
+    const sw = b.weight * 1.4;
+    const h  = Math.max(Math.round(sw + 4), 8);
+    const y  = h / 2;
+    const da = b.dash ? ` stroke-dasharray="${b.dash}"` : '';
+    return `<div class="leg-item"><svg width="22" height="${h}" style="flex-shrink:0"><line x1="0" y1="${y}" x2="22" y2="${y}" stroke="var(--muted)" stroke-width="${sw}"${da}/></svg>${b.label}</div>`;
+  }).join('');
+
+  const modLeg = CONFIG.modalita.map(m =>
+    `<div class="leg-item"><div class="leg-dot" style="background:${modalitaColor(m)}"></div>${m.charAt(0).toUpperCase()+m.slice(1)}</div>`
+  ).join('');
+
+  const powerFlt = CONFIG.powerBands.map((b, i) =>
+    `<label class="filter-item"><input type="checkbox" class="flt-power" data-idx="${i}" checked> ${b.label}</label>`
+  ).join('');
+
+  const modFlt = CONFIG.modalita.map(m =>
+    `<label class="filter-item"><input type="checkbox" class="flt-mod" data-mod="${m}" checked> ${m.charAt(0).toUpperCase()+m.slice(1)}</label>`
+  ).join('');
+
+  sidebar.innerHTML = `
+    <button id="sidebar-close" title="Chiudi">✕</button>
+    <div class="sb-title">Legenda</div>
+    <div class="sb-sublabel">RST (linea)</div>
+    ${rstLeg}
+    <div class="sb-sublabel">Potenza (tratto)</div>
+    ${powerLeg}
+    <div class="sb-sublabel">Modalità (pallino)</div>
+    ${modLeg}
+    <div class="leg-item"><span style="font-size:14px;line-height:1">📡</span>Ponte</div>
+    <div class="sb-sep"></div>
+    <div class="sb-title">Filtri</div>
+    <div class="sb-sublabel">Potenza</div>
+    ${powerFlt}
+    <div class="sb-sublabel">Modalità</div>
+    ${modFlt}
+    <div id="last-update">aggiornato: —</div>
+  `;
+
+  sidebar.querySelectorAll('.flt-power').forEach(cb => {
+    cb.addEventListener('change', () => {
+      filterPower = new Set([...sidebar.querySelectorAll('.flt-power:checked')].map(el => +el.dataset.idx));
+      applyFilters();
+    });
+  });
+  sidebar.querySelectorAll('.flt-mod').forEach(cb => {
+    cb.addEventListener('change', () => {
+      filterModalita = new Set([...sidebar.querySelectorAll('.flt-mod:checked')].map(el => el.dataset.mod.toLowerCase()));
+      applyFilters();
+    });
+  });
+  document.getElementById('sidebar-close').addEventListener('click', () => sidebar.classList.remove('open'));
+  filterBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
+  // Chiudi drawer cliccando sulla mappa (mobile)
+  document.getElementById('map-area').addEventListener('click', e => {
+    if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== filterBtn)
+      sidebar.classList.remove('open');
+  });
+
   // Layer switcher
-  document.querySelectorAll('.layer-btn').forEach(btn => {
+  document.querySelectorAll('[data-layer]').forEach(btn => {
     btn.addEventListener('click', () => {
       const layer = btn.dataset.layer;
-      if (layer === activeLayer) return;
+      if (!layer || layer === activeLayer) return;
       map.removeLayer(TILE_LAYERS[activeLayer]);
       TILE_LAYERS[layer].addTo(map);
       activeLayer = layer;
-      document.querySelectorAll('.layer-btn').forEach(b =>
+      document.querySelectorAll('[data-layer]').forEach(b =>
         b.classList.toggle('active', b.dataset.layer === layer)
       );
     });
